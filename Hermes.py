@@ -1,6 +1,8 @@
 splashtext = ["Importing libraries..."]
 
-version = 0.7
+version = 0.8
+
+g_domain = "https://hebedebe.github.io/Hermes"
 
 logo = [
     "",
@@ -67,6 +69,13 @@ addsplash("Importing atexit")
 import atexit
 addsplash("Importing urllib")
 import urllib
+addsplash("Importing pretty_downloader")
+try:
+    from pretty_downloader import pretty_downloader
+except:
+    addsplash("Installing pretty_downloader")
+    os.system("pip3 install pretty_downloader")
+    from pretty_downloader import pretty_downloader
 
 if platform == "darwin":
     logo = ""
@@ -80,21 +89,27 @@ class Page(Enum):
 
 page = Page.LOADING
 
-addsplash("Initialising curses terminal")
+stdscr = None
 
-stdscr = curses.initscr()
+def init_curses():
+    global stdscr
+    addsplash("Initialising curses terminal")
 
-addsplash("Disabling curses echo")
+    stdscr = curses.initscr()
 
-curses.noecho()
+    addsplash("Disabling curses echo")
 
-addsplash("Initialising curses terminal")
+    curses.noecho()
 
-curses.cbreak()
+    addsplash("Initialising curses terminal")
 
-addsplash("Hiding terminal cursor")
+    curses.cbreak()
 
-curses.curs_set(False)
+    addsplash("Hiding terminal cursor")
+
+    curses.curs_set(False)
+
+init_curses()
 
 #addsplash("Enabling keypad support")
 
@@ -120,15 +135,25 @@ if curses.has_colors():
         stdscr.refresh()
         time.sleep(5)
 
+def clear():
+    global stdscr
+    for y in range(curses.LINES):
+        for x in range(curses.COLS-1):
+            stdscr.addstr(y, x, " ")
+
 def startup():
     global version, splashtext, logo, page, stdscr
     logo_col = 35
     logo_line = 5
     splashoffset = logo_line+8
-    while __name__ == "__main__":
+    n = 0
+    while True:
         if page == Page.LOADING:
+            clear()
+            n+=1
             stdscr.addstr(0, 0, f"Hermes V{str(version)}")
             stdscr.addstr(1, 0, f"Platform: {platform}")
+            stdscr.addstr(2, 0, f"n: {str(n)}")
 
             _ = 0
             for i in logo:
@@ -137,9 +162,9 @@ def startup():
 
             offset = 0
             for i in splashtext:
-                if offset+splashoffset > curses.LINES:
+                if offset+splashoffset > curses.LINES-1:
                     continue
-                i_ = "     "+i+"     "
+                i_ = i
                 stdscr.addstr(offset+splashoffset, round((curses.COLS/2)-(len(i_)/2)), i_, curses.color_pair(7))
                 offset += 1
 
@@ -147,8 +172,8 @@ def startup():
 
 threading.Thread(target=startup, daemon=True).start()
 
-addsplash("Initialising Colorama")
-colorama.init()
+#addsplash("Initialising Colorama")
+#colorama.init()
 
 addsplash(f"Hermes version {str(version)}")
 
@@ -156,7 +181,9 @@ addsplash(f"Running on {str(platform)}")
 
 addsplash("Retrieving JSON data...")
 
-data = requests.get("https://hebedebe.github.io/chess2.0/hermes_data.json").json()
+#time.sleep(2)
+
+data = requests.get(f"{g_domain}/hermes_data.json").json()
 
 servers = data["servers"]
 
@@ -188,13 +215,10 @@ def updateinput():
             if selection_ == 0:
                 page = Page.UPDATE
             else:
-                page = Page.MENU
-
-def clear():
-    global stdscr
-    for y in range(curses.LINES):
-        for x in range(curses.COLS-1):
-            stdscr.addstr(y, x, " ")
+                clear()
+                stdscr.refresh()
+                #threading.Thread(target=startup, daemon=True).start()
+                page = Page.LOADING
 
 if (latestver > version):
     page = Page.UPDATEPROMPT
@@ -215,15 +239,18 @@ if (latestver > version):
                 stdscr.addstr(round(curses.LINES*0.3)+3,round(curses.COLS/2)+4, "[POSTPONE]", curses.color_pair(255))
             stdscr.refresh()
     if page == Page.UPDATE:
-        print(f"Downloading Hermes V{latestver}... (this may take a while)")
+        clear()
+        stdscr.addstr(0,0,f"Downloading Hermes V{latestver}... (this may take a while)")
+        stdscr.refresh()
         path = os.path.dirname(__file__)
         ftype_ = "Hermes.exe"
         if platform == "darwin" or platform == "linux" or platform == "linux2":
             ftype_ = "Hermes.py"
-        with urllib.request.urlopen(f"https://hebedebe.github.io/chess2.0/{ftype_}") as upd:
-            with open(path+"/"+ftype_, "wb+") as f:
-                print(f"Writing program to {path+'/'+ftype_}")
-                f.write(upd.read())
+        curses.endwin()
+        print(f"Downloading Hermes V{latestver}... (this may take a while)")
+        pretty_downloader.download(f"{g_domain}/{ftype_}", file_path=f"{path}/", file_name=ftype_)
+        stdscr.refresh()
+        f.write(upd.read())
         #urllib.request.urlretrieve("https://hebedebe.github.io/chess2.0/Hermes.exe", "Hermes.exe")
         print("The program will now restart to complete installation.")
         time.sleep(1)
@@ -250,6 +277,8 @@ if len(colour) < len("10"):
 domain = None
 
 connected = False
+
+addsplash(f"Connecting to servers...")
 
 for i in servers:
     domain = i
@@ -318,17 +347,24 @@ def usernameinput():
         except:
             pass
 
-page = Page.MENU
-
-threading.Thread(target=usernameinput, daemon=True).start()
 
 time.sleep(0.5)
+page = Page.MENU
+threading.Thread(target=usernameinput, daemon=True).start()
 clear()
-
+logo_col = 35
+logo_line = 5
+username = ""
 while page == Page.MENU:
+    stdscr.addstr(0, 0, f"Hermes V{str(version)}")
+    stdscr.addstr(1, 0, f"Platform: {platform}")
+    _ = 0
+    for i in logo:
+        stdscr.addstr(logo_line+_, logo_col, i, curses.color_pair(7))
+        _+= 1
     username_ = "     "+username+"_     "
-    stdscr.addstr(round(curses.LINES*0.3),round(curses.COLS/2-(len("Enter Username:")/2)), "Enter Username:")
-    stdscr.addstr(round(curses.LINES*0.3+3),round(curses.COLS/2-(len(username_)/2)), username_)
+    stdscr.addstr(round(curses.LINES*0.3+7),round(curses.COLS/2-(len("Enter Username:")/2)), "Enter Username:")
+    stdscr.addstr(round(curses.LINES*0.3+10),round(curses.COLS/2-(len(username_)/2)), username_)
     stdscr.refresh()
 
 
@@ -413,6 +449,8 @@ threading.Thread(target=msghandler, daemon=True).start()
 threading.Thread(target=inputhandler, daemon=True).start()
 
 page = Page.CHAT
+
+clear()
 
 while __name__ == "__main__":
     try:
