@@ -1,6 +1,6 @@
 splashtext = ["Importing libraries..."]
 
-version = 0.8
+version = 1.0
 
 g_domain = "https://hebedebe.github.io/Hermes"
 
@@ -69,16 +69,30 @@ addsplash("Importing atexit")
 import atexit
 addsplash("Importing urllib")
 import urllib
-addsplash("Importing pretty_downloader")
-try:
-    from pretty_downloader import pretty_downloader
-except:
-    addsplash("Installing pretty_downloader")
-    os.system("pip3 install pretty_downloader")
-    from pretty_downloader import pretty_downloader
 
+try:
+    import ssl
+except:
+    addsplash("Installing ssl")
+    os.system("pip3 install ssl")
+    import ssl
+
+try:
+    import certifi
+except:
+    addsplash("Installing certifi")
+    os.system("pip3 install certifi")
+    import certifi
+
+from urllib.request import urlopen
+
+v = True
 if platform == "darwin":
     logo = ""
+    v=False
+    addsplash("Verification disabled")
+
+sec = context=ssl.create_default_context(cafile=certifi.where())
 
 class Page(Enum):
     LOADING = auto()
@@ -89,27 +103,21 @@ class Page(Enum):
 
 page = Page.LOADING
 
-stdscr = None
+addsplash("Initialising curses terminal")
 
-def init_curses():
-    global stdscr
-    addsplash("Initialising curses terminal")
+stdscr = curses.initscr()
 
-    stdscr = curses.initscr()
+addsplash("Disabling curses echo")
 
-    addsplash("Disabling curses echo")
+curses.noecho()
 
-    curses.noecho()
+addsplash("Initialising curses terminal")
 
-    addsplash("Initialising curses terminal")
+curses.cbreak()
 
-    curses.cbreak()
+addsplash("Hiding terminal cursor")
 
-    addsplash("Hiding terminal cursor")
-
-    curses.curs_set(False)
-
-init_curses()
+curses.curs_set(False)
 
 #addsplash("Enabling keypad support")
 
@@ -147,13 +155,16 @@ def startup():
     logo_line = 5
     splashoffset = logo_line+8
     n = 0
+    TPS = 0
     while True:
         if page == Page.LOADING:
+            start_time = time.time() # start time of the loop
             clear()
             n+=1
             stdscr.addstr(0, 0, f"Hermes V{str(version)}")
             stdscr.addstr(1, 0, f"Platform: {platform}")
             stdscr.addstr(2, 0, f"n: {str(n)}")
+            stdscr.addstr(3, 0, f"TPS: {str(round(TPS))}")
 
             _ = 0
             for i in logo:
@@ -169,6 +180,7 @@ def startup():
                 offset += 1
 
             stdscr.refresh()
+            TPS=(1.0 / ((time.time() - start_time)+0.01))
 
 threading.Thread(target=startup, daemon=True).start()
 
@@ -183,7 +195,7 @@ addsplash("Retrieving JSON data...")
 
 #time.sleep(2)
 
-data = requests.get(f"{g_domain}/hermes_data.json").json()
+data = requests.get(f"{g_domain}/hermes_data.json", verify=v).json()
 
 servers = data["servers"]
 
@@ -246,13 +258,14 @@ if (latestver > version):
         ftype_ = "Hermes.exe"
         if platform == "darwin" or platform == "linux" or platform == "linux2":
             ftype_ = "Hermes.py"
-        curses.endwin()
-        print(f"Downloading Hermes V{latestver}... (this may take a while)")
-        pretty_downloader.download(f"{g_domain}/{ftype_}", file_path=f"{path}/", file_name=ftype_)
-        stdscr.refresh()
-        f.write(upd.read())
+        with urllib.request.urlopen(f"{g_domain}/{ftype_}") as upd:
+            with open(path+"/"+ftype_, "wb+") as f:
+                stdscr.addstr(1,0,f"Writing program to {path+'/'+ftype_}")
+                stdscr.refresh()
+                f.write(upd.read())
         #urllib.request.urlretrieve("https://hebedebe.github.io/chess2.0/Hermes.exe", "Hermes.exe")
-        print("The program will now restart to complete installation.")
+        stdscr.addstr(2,0,"The program will now restart to complete installation.")
+        stdscr.refresh()
         time.sleep(1)
         try:
             if platform == "win32":
@@ -265,18 +278,25 @@ if (latestver > version):
                 except:
                     os.system(f"python3 {path+'/'+ftype_}")
         except:
-            print("Program failed to execute. Please restart the program manually")
+            stdscr.addstr(1,0,"Program failed to execute. Please restart the program manually")
+            stdscr.refresh()
             time.sleep(3)
         exit()
 
 colour = str(random.randint(2,32))
+addsplash("Randomised user colour")
 
 if len(colour) < len("10"):
     colour = "0"+colour
+    addsplash("Corrected user colour")
 
 domain = None
+addsplash("Set domain to None")
 
 connected = False
+
+addsplash("Setting GET request timeout to 1.5 seconds")
+timeout_ = 1.5
 
 addsplash(f"Connecting to servers...")
 
@@ -284,7 +304,7 @@ for i in servers:
     domain = i
     addsplash(f"Attempting connection to server {domain}... ({servers.index(i)+1} of {len(servers)})")
     try:
-        r_ = requests.get(domain)
+        r_ = requests.get(domain, timeout=1.5)
         if r_.status_code != 200:
             addsplash(f"Recieved error code <{r_.status_code}>")
         elif r_.status_code == 200:
@@ -302,23 +322,31 @@ if not connected:
 
 keylen = 32
 
+addsplash("Loading user key...")
+
 try:
     if os.path.isfile("key.txt"):
         f = open("key.txt", "r")
         key = f.read()
         f.close()
+        addsplash("Key retrieved")
     else:
+        addsplash("No key file detected")
+        addsplash("Creating key file")
         f = open("key.txt", "x")
         f.close()
         f = open("key.txt", "w")
         key = ""
+        addsplash("Generating user key")
         for i in range(keylen):
             chnum = random.randint(33,126)
             while chnum == 34 or chnum == 96 or ch(chnum) == "\\":
                 chnum = random.randint(33,126)
             key = key+chr(chnum)
+        addsplash("Writing key to key file")
         f.write(key)
         f.close()
+        addsplash("Key generation complete")
 except:
     addsplash("Key generation/detection failed.")
     key = None
@@ -365,8 +393,23 @@ while page == Page.MENU:
     username_ = "     "+username+"_     "
     stdscr.addstr(round(curses.LINES*0.3+7),round(curses.COLS/2-(len("Enter Username:")/2)), "Enter Username:")
     stdscr.addstr(round(curses.LINES*0.3+10),round(curses.COLS/2-(len(username_)/2)), username_)
+    stdscr.addstr(curses.LINES-1, 0, f"Key: {key}")
+
     stdscr.refresh()
 
+clear()
+
+stdscr.addstr(0, 0, f"Hermes V{str(version)}")
+stdscr.addstr(1, 0, f"Platform: {platform}")
+_ = 0
+for i in logo:
+    stdscr.addstr(logo_line+_, logo_col, i, curses.color_pair(7))
+    _+= 1
+username_ = "     "+username+"_     "
+stdscr.addstr(round(curses.LINES*0.3+7),round(curses.COLS/2-(len("Loading...")/2)), "Loading...")
+stdscr.addstr(curses.LINES-1, 0, f"Key: {key}")
+
+stdscr.refresh()
 
 channel = "main"
 
@@ -391,7 +434,9 @@ def send_msg(msg):
     elif msg[0] != "!":
         response = requests.post(domain+f"/{channel}", data=(f"{key}{colour}[{username}] {msg}".encode(encoding="UTF-8")))
     else:
-        if msg[0:4] == "!key":
+        if msg == "!version":
+            stdscr.addstr(curses.LINES-1, 0, f"Hermes v{version}")
+        elif msg[0:4] == "!key":
             stdscr.addstr(curses.LINES-1, 0, 'Key: "'+key+'"')
         elif msg[0:8] == "!channel":
             requests.post(domain+f"/{channel}", data=(f"{key}00           ({username} left the channel.)".encode(encoding="UTF-8")))
@@ -446,14 +491,33 @@ def exit_handler():
 atexit.register(exit_handler)
 
 threading.Thread(target=msghandler, daemon=True).start()
-threading.Thread(target=inputhandler, daemon=True).start()
+#threading.Thread(target=inputhandler, daemon=True).start()
 
 page = Page.CHAT
 
 clear()
 
+stdscr.nodelay(1)
+
 while __name__ == "__main__":
     try:
+        try:
+            chcode = stdscr.getch()
+            keypressed = chr(chcode)
+            if keypressed == "\n":
+                send_msg(inpt)
+                stdscr.addstr(curses.LINES-3, 0, " "*curses.COLS)
+                inpt = ""
+            elif keypressed == "\b" or chcode == 127:
+                inpt = inpt[:len(inpt)-1]
+            else:
+                if chcode == 34:
+                    inpt = inpt+'"'
+                else:
+                    inpt = inpt+keypressed
+        except:
+            pass
+
         stdscr.addstr(0, 0, f"//{channel}          ")
         stdscr.addstr(curses.LINES-4, 0, "-"*curses.COLS)
         stdscr.addstr(curses.LINES-3, 0, "> "+inpt+" "*(curses.COLS-len("> "+inpt)-1))
