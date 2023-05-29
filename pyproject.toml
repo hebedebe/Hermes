@@ -1,0 +1,6 @@
+[tools.py2app.bundle.main]
+
+script = "Hermes.py"
+standalone = true
+name = "Hermes"
+iconfile = "Caduceus.ico"
