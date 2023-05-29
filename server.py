@@ -1,165 +1,153 @@
-import socket
-import threading
-import pickle
-from enum import Enum, auto
+#!/usr/bin/env python3
+
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
+import requests
 from copy import deepcopy
-import random
+import socket
+import github
 
-HOST = "0.0.0.0"  # Standard loopback interface address (localhost)
-PORT = 65432  # Port to listen on (non-privileged ports are > 1023)
+version = 0.4
 
-lobby = {}
-lobby_ = {} #usernames only
+token = #insert token
 
-games = {}
+print(f"Hermes server version {version}")
 
-gameid_ = 0
+IP = socket.gethostbyname(socket.gethostname())
 
-minstockval = 1#0.007
+print(f"Hosting on IP {IP}")
 
-def clamp(val, min, max):
-	if (val > max):
-		return max
-	if (val < min):
-		return min
-	return val
+default_messages = ["00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00","00"]
 
-def fixData(data, length=4096):
-	addonlen = length-len(data)
-	addonlen_ = str(addonlen)
-	while len(addonlen_) < 4:
-		addonlen_ = "0"+addonlen_
-	addon = (b" "*(addonlen))
-	return addon+data
+g_domain = "https://hebedebe.github.io/Hermes"
 
-def recvData(data):
-	try:
-		return data.strip()#data[int(data[0:4]):]
-	except:
-		return b''
+print("retrieving admin keys from admin_keys.json")
+admin_keys = requests.get(f"{g_domain}/admin_keys.json").json()["keys"]
+print(admin_keys)
 
-class Pieces(Enum):
-	KING = 1
-	QUEEN = 2
-	KNIGHT = 3
-	BISHOP = 4
-	ROOK = 5
-	PAWN = 6
+print("retrieving banned keys from banned_keys.json")
+banned_keys = requests.get(f"{g_domain}/banned_keys.json").json()["keys"]
+print(banned_keys)
 
-stock_multiplier = 0.1
+print("retrieving server data from hermes_data.json")
+server_data = requests.get(f"{g_domain}/hermes_data.json").json()
+print(server_data)
 
-stock_variations = {
-	Pieces.KING:[-0.1,0.1],
-	Pieces.QUEEN:[-0.4,0.4],
-	Pieces.BISHOP:[-0.05,0.05],
-	Pieces.KNIGHT:[-0.05,0.05],
-	Pieces.ROOK:[-0.1,0.1],
-	Pieces.PAWN:[-0.01,0.01]
+g = github.Github(token)
+
+repo = g.get_user().get_repo("Hermes")
+file = repo.get_contents("hermes_data.json")
+
+sha = file.sha
+
+if f"http://{IP}:80" in server_data["servers"]:
+    server_data["servers"].remove(f"http://{IP}:80")
+
+server_data["servers"].insert(0, f"http://{IP}:80")
+
+
+repo.update_file("hermes_data.json", "Added ip to server list", json.dumps(server_data), sha)
+print("Added IP to list")
+
+messages = {
+    "main":deepcopy(default_messages)
 }
 
-class dTypes(Enum):
-	JOINLOBBY = auto()
-	ACCEPTREQUEST = auto()
-	SENDREQUEST = auto()
-	REQUESTLOBBY = auto()
-	GAMEDATA = auto()
-	STARTGAME = auto()
-	LOBBYDATA = auto()
-	GAMEID = auto()
-	STOCKUPDATE = auto()
+keylen = 32
 
-def randfloat(min, max):
-	return random.randint(min*100000, max*100000)/100000
+class S(BaseHTTPRequestHandler):
+    def _set_headers(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
 
-def connection(conn, addr):
-	global lobby, games, gameid_, lobby_
-	print(f"Connected by {addr}")
-	print(conn)
-	opponent = None
-	got_lock = False
-	lock = b'DKpDCBSnVekQ8sWm'
-	lock_inpt = b''
-	gameid = deepcopy(gameid_)
-	gameid_ += 1
-	while not got_lock:
-		data = conn.recv(16)
-		lock_inpt = lock_inpt + data
-		if lock in lock_inpt:
-			print(f"Got lock from {addr}")
-			got_lock = True
-	lobby.update({gameid:["anonymous",conn]})
-	conn.send(fixData(pickle.dumps({"type":dTypes.GAMEID, "gameid":gameid})))
-	try:
-		while __name__ == "__main__":
-			data = recvData(conn.recv(4096))
-			if data == b'':
-				continue
-			data = pickle.loads(data)
-			datatype = data["type"]
-			if (datatype == dTypes.JOINLOBBY):
-				lobby.update({gameid:["anonymous",conn]})
-				lobby_.update({gameid:data["username"]})
-				print("Added player "+data["username"]+" to lobby")
-				conn.send(fixData(pickle.dumps({"type":dTypes.LOBBYDATA, "lobby":lobby_})))
-			elif (datatype == dTypes.REQUESTLOBBY):
-				conn.send(fixData(pickle.dumps({"type":dTypes.LOBBYDATA, "lobby":lobby_})))
-				print("sent lobby data")
-			elif (datatype == dTypes.SENDREQUEST):
-				print(lobby[data["gameid"]])
-				opponent = lobby[data["gameid"]][1]
-				opponent.send(fixData(pickle.dumps(data)))
-			elif (datatype == dTypes.ACCEPTREQUEST):
-				p1colour = data["p1colour"]
-				p2colour = data["p2colour"]
-				opponent = lobby[data["gameid2"]][1]
-				conn.send(fixData(pickle.dumps({"type":dTypes.STARTGAME, "colour":p1colour})))
-				opponent.send(fixData(pickle.dumps({"type":dTypes.STARTGAME, "colour":p2colour})))
-				lobby.pop(gameid)
-				lobby.pop(data["gameid2"])
-				games.update({gameid:[conn,opponent]})
-			elif (datatype == dTypes.GAMEDATA):
-				opponent.send(fixData(pickle.dumps(data)))
-			elif (datatype == dTypes.STOCKUPDATE):
-				board = data["board"]
-				stocks = data["stocks"]
-				num_pieces = {
-					Pieces.KING:0,
-					Pieces.QUEEN:0,
-					Pieces.KNIGHT:0,
-					Pieces.BISHOP:0,
-					Pieces.ROOK:0,
-					Pieces.PAWN:0,
-					None:0
-				}
-				for x in range(8):
-					for y in range(8):
-						num_pieces[board[x][y][0]] += 1
-				for i in num_pieces:
-					if i == None:
-						continue
-					value = stocks[i][0]
-					momentum = stocks[i][2]
-					momentum += randfloat(stock_variations[i][0],stock_variations[i][1])
-					value = clamp(value+momentum*stock_multiplier,minstockval,100)
-					stocks[i][0] = value
-					stocks[i][2] = momentum
-				conn.send(fixData(pickle.dumps({"type":dTypes.STOCKUPDATE, "stocks":stocks})))
-				opponent.send(fixData(pickle.dumps({"type":dTypes.STOCKUPDATE, "stocks":stocks})))
-	except Exception as e:
-		print(e)
-		print(f"Client {addr} disconnected")
-		if gameid in lobby_:
-			lobby_.pop(gameid)
-		if gameid in lobby:
-			lobby.pop(gameid)
-		if gameid in games:
-			games.pop(gameid)
+    def log_message(self, format, *args):
+        return
 
+    def do_GET(self):
+        global messages
+        self._set_headers()
+        if self.path == "/":
+            return
+        channel = self.path[1:]
+        try:
+            msg_ = messages[channel]
+        except:
+            print(f"Created channel {channel}")
+            messages[channel] = deepcopy(default_messages)
+            msg_ = messages[channel]
+        self.wfile.write(json.dumps({"messages":messages[channel][:25]}).encode(encoding="UTF-8"))
 
+    def do_HEAD(self):
+        self._set_headers()
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-	s.bind((HOST, PORT))
-	while __name__ == "__main__":
-		s.listen()
-		conn, addr = s.accept()
-		threading.Thread(target=connection, args=(conn,addr)).start()
+    def do_POST(self):
+        global messages, banned_keys, admin_keys
+        if self.path == "/":
+            return
+        channel = self.path[1:]
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length).decode(encoding="UTF-8")
+        print(post_data)
+        key = post_data[:keylen]
+        #print(key)
+        if key in banned_keys:
+            return
+        if key in admin_keys:
+            msg_ = post_data[keylen+2:].split()
+            #print(msg_)
+            if msg_[0] == "|CMD|":
+                cmd = msg_[1]
+                try:
+                    args = msg_[2:]
+                except:
+                    args = False
+                if cmd == "ban":
+                    for i in args:
+                        banned_keys.append(i)
+                        print(f"Banned ({i})")
+                if cmd == "unban":
+                    for i in args:
+                        banned_keys.remove(i)
+                        print(f"Unbanned ({i})")
+                elif cmd == "listadmins":
+                    for i in admin_keys:
+                        messages[channel].insert(0,"00"+i)
+                elif cmd == "clear":
+                    if args:
+                        for i in args:
+                            messages[i] = deepcopy(default_messages)
+                    else:
+                        messages[channel] = deepcopy(default_messages)
+                return
+
+        try:
+            msg_ = messages[channel]
+        except:
+            print(f"Created channel {channel}")
+            messages[channel] = deepcopy(default_messages)
+            msg_ = messages[channel]
+        colour = post_data[keylen:keylen+2]
+        try:
+            colour = int(colour)
+        except:
+            post_data = post_data[:keylen]+"00"+post_data[keylen+2:]
+        if key in admin_keys:
+            messages[channel].insert(0,post_data[keylen:keylen+2]+"☣ "+post_data[keylen+2:])
+        else:
+            messages[channel].insert(0,post_data[keylen:])
+        self._set_headers()
+
+def run(server_class=HTTPServer, handler_class=S, port=80):
+    server_address = ('', port)
+    httpd = server_class(server_address, handler_class)
+    print('Starting httpd...')
+    httpd.serve_forever()
+
+if __name__ == "__main__":
+    from sys import argv
+
+    if len(argv) == 2:
+        run(port=int(argv[1]))
+    else:
+        run()
