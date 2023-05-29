@@ -88,7 +88,7 @@ from urllib.request import urlopen
 
 v = True
 if platform == "darwin":
-    logo = ""
+    #logo = ""
     v=False
     addsplash("Verification disabled")
 
@@ -279,7 +279,7 @@ if (latestver > version):
         ftype_ = "Hermes.exe"
         if platform == "darwin" or platform == "linux" or platform == "linux2":
             ftype_ = "Hermes.py"
-        with urllib.request.urlopen(f"{g_domain}/{ftype_}") as upd:
+        with urllib.request.urlopen(f"{g_domain}/{ftype_}", verify=v) as upd:
             with open(path+"/"+ftype_, "wb+") as f:
                 stdscr.addstr(1,0,f"Writing program to {path+'/'+ftype_}")
                 stdscr.refresh()
