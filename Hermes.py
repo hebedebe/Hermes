@@ -1,6 +1,6 @@
 splashtext = ["Importing libraries..."]
 
-version = 1.0
+version = 1.1
 
 g_domain = "https://hebedebe.github.io/Hermes"
 
