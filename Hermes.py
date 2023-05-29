@@ -1,6 +1,6 @@
 splashtext = ["Importing libraries..."]
 
-version = 1.1
+version = 1.2
 
 g_domain = "https://hebedebe.github.io/Hermes"
 
@@ -122,6 +122,27 @@ curses.curs_set(False)
 #addsplash("Enabling keypad support")
 
 #curses.keypad(stdscr, true);
+
+def resizeHandler():
+    global stdscr
+    y, x = stdscr.getmaxyx()
+    print(y,x)
+    minx = 120
+    miny = 30
+    if y < miny:
+        y = miny
+    if x < minx:
+        x = minx
+    while True:
+        resize = curses.is_term_resized(y, x)
+        if resize is True:
+            y, x = stdscr.getmaxyx()
+            stdscr.clear()
+            curses.resize_term(y, x)
+            stdscr.refresh()
+
+addsplash("Starting resizeHandler")
+threading.Thread(target=resizeHandler, daemon=True).start()
 
 addsplash("Loading curses colour pairs")
 
