@@ -1,6 +1,6 @@
 splashtext = ["Importing libraries..."]
 
-version = 1.2
+version = 1.3
 
 g_domain = "https://hebedebe.github.io/Hermes"
 
@@ -277,13 +277,32 @@ if (latestver > version):
         stdscr.refresh()
         path = os.path.dirname(__file__)
         ftype_ = "Hermes.exe"
-        if platform == "darwin" or platform == "linux" or platform == "linux2":
+        if platform == "darwin":
+            ftype_ = "Hermes.app"
+        if platform == "linux" or platform == "linux2":
             ftype_ = "Hermes.py"
-        with urllib.request.urlopen(f"{g_domain}/{ftype_}", verify=v) as upd:
-            with open(path+"/"+ftype_, "wb+") as f:
-                stdscr.addstr(1,0,f"Writing program to {path+'/'+ftype_}")
+        try:
+            with urllib.request.urlopen(f"{g_domain}/{ftype_}", verify=v) as upd:
+                with open(path+"/"+ftype_, "wb+") as f:
+                    stdscr.addstr(1,0,f"Writing program to {path+'/'+ftype_}")
+                    stdscr.refresh()
+                    f.write(upd.read())
+        except:
+            try:
+                stdscr.addstr(1,0,f"Download failed, attempting alternate method...")
                 stdscr.refresh()
-                f.write(upd.read())
+                with urllib.request.urlopen(f"{g_domain}/{ftype_}",) as upd:
+                    with open(path+"/"+ftype_, "wb+") as f:
+                        stdscr.addstr(2,0,f"Writing program to {path+'/'+ftype_}")
+                        stdscr.refresh()
+                        f.write(upd.read())
+            except:
+                stdscr.addstr(2,0,f"Download failed, please update the program manually.")
+                stdscr.addstr(3,0,f"https://hebedebe.github.com/Hermes")
+                stdscr.refresh()
+                while True:
+                    pass
+
         #urllib.request.urlretrieve("https://hebedebe.github.io/chess2.0/Hermes.exe", "Hermes.exe")
         stdscr.addstr(2,0,"The program will now restart to complete installation.")
         stdscr.refresh()
@@ -543,10 +562,16 @@ while __name__ == "__main__":
         stdscr.addstr(curses.LINES-4, 0, "-"*curses.COLS)
         stdscr.addstr(curses.LINES-3, 0, "> "+inpt+" "*(curses.COLS-len("> "+inpt)-1))
 
-        for i in range(len(messages))[:curses.LINES-5]:
-            if len(messages[i]) > curses.COLS-2:
-                messages[i] = messages[i][:curses.COLS-2]
-            stdscr.addstr(curses.LINES-5-i, 0, messages[i][2:]+" "*(curses.COLS-len(messages[i])-1), curses.color_pair(int(messages[i][:2])))
+        messages_ = deepcopy(messages)
+        messages_.insert(0,"00")
+
+        for i in range(len(messages_))[:curses.LINES-5]:
+            if i > curses.LINES-5:
+                continue
+            n = 0
+            stdscr.addstr(curses.LINES-5-i, 0, messages_[i][2:]+" "*(curses.COLS-len(messages_[i])+2), curses.color_pair(int(messages_[i][:2])))
+            if len(messages_[i]) > curses.COLS-1:
+                i += round(len(messages_[i][2:])/(curses.COLS-1))+1
     except:
         if b'\x00' in inpt.encode("utf-8"):
             inpt = inpt[:len(inpt)-1]
